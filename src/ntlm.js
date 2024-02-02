@@ -7,7 +7,7 @@ const os = require('os'),
 
 const NTLMSIGNATURE = "NTLMSSP\0";
 
-function createType1Message(workstation, target) {
+function createType1Message(workstation, target, authenticationType = "NTLM") {
 	let dataPos = 32,
 		pos = 0,
 		buf = new Buffer.alloc(1024);
@@ -55,10 +55,10 @@ function createType1Message(workstation, target) {
 		dataPos += buf.write(workstation, dataPos, 'ascii');
 	}
 
-	return 'NTLM ' + buf.toString('base64', 0, dataPos);
+	return `${authenticationType} ` + buf.toString('base64', 0, dataPos);
 }
 
-function decodeType2Message(str) {
+function decodeType2Message(str, authenticationType = "NTLM") {
 	if (str === undefined) {
 		throw new Error('Invalid argument');
 	}
@@ -72,7 +72,7 @@ function decodeType2Message(str) {
 		}
 	}
 
-	let ntlmMatch = /^NTLM ([^,\s]+)/.exec(str);
+	let ntlmMatch = new RegExp(`^${authenticationType} ([^,\\s]+)`).exec(str);
 
 	if (ntlmMatch) {
 		str = ntlmMatch[1];
@@ -190,7 +190,7 @@ function decodeType2Message(str) {
 	return obj;
 }
 
-function createType3Message(type2Message, username, password, workstation, target) {
+function createType3Message(type2Message, username, password, workstation, target, authenticationType = "NTLM") {
 	let dataPos = 52,
 		buf = new Buffer.alloc(1024);
 
@@ -285,7 +285,7 @@ function createType3Message(type2Message, username, password, workstation, targe
 		buf.writeUInt32LE(type2Message.flags, 60);
 	}
 
-	return 'NTLM ' + buf.toString('base64', 0, dataPos);
+	return `${authenticationType} ` + buf.toString('base64', 0, dataPos);
 }
 
 module.exports = {
