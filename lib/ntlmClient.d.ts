@@ -11,6 +11,7 @@ export interface NtlmCredentials {
     readonly password: string;
     readonly domain: string;
     readonly workstation?: string;
+    readonly customAuthenticationType?: string;
 }
 /**
 * @param credentials An NtlmCredentials object containing the username and password

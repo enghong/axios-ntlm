@@ -16,6 +16,7 @@ export interface NtlmCredentials {
     readonly password: string;
     readonly domain: string;
     readonly workstation?: string;
+    readonly customAuthenticationType?: string;
 }
 
 /**
@@ -35,6 +36,8 @@ export function NtlmClient(credentials: NtlmCredentials, AxiosConfig?: AxiosRequ
         config.httpsAgent = new https.Agent({keepAlive: true}); 
     }
 
+    let authenticationType = credentials.customAuthenticationType ?? 'NTLM';
+
     let client = axios.create(config);
 
     client.interceptors.response.use((response) => {
@@ -44,7 +47,7 @@ export function NtlmClient(credentials: NtlmCredentials, AxiosConfig?: AxiosRequ
 
         if (error && error.status === 401
             && error.headers['www-authenticate']
-            && error.headers['www-authenticate'].includes('NTLM')
+            && error.headers['www-authenticate'].includes(authenticationType)
             // This length check is a hack because SharePoint is awkward and will 
             // include the Negotiate option when responding with the T2 message
             // There is nore we could do to ensure we are processing correctly,
@@ -52,7 +55,7 @@ export function NtlmClient(credentials: NtlmCredentials, AxiosConfig?: AxiosRequ
             && error.headers['www-authenticate'].length < 50
             && !err.config.headers['X-retry']) {
 
-            let t1Msg = ntlm.createType1Message(credentials.workstation!, credentials.domain);
+            let t1Msg = ntlm.createType1Message(credentials.workstation!, credentials.domain, authenticationType);
 
             error.config.headers["Authorization"] = t1Msg;
             let resp = client(error.config);
@@ -62,11 +65,11 @@ export function NtlmClient(credentials: NtlmCredentials, AxiosConfig?: AxiosRequ
         else if (error && error.status === 401
             && error.headers['www-authenticate']
             && error.headers['www-authenticate'].length > 50
-            && error.headers['www-authenticate'].includes('NTLM')) {
+            && error.headers['www-authenticate'].includes(authenticationType)) {
             
-            let t2Msg = ntlm.decodeType2Message((error.headers['www-authenticate'].match(/^NTLM\s+(.+?)(,|\s+|$)/) || [])[1]);
+            let t2Msg = ntlm.decodeType2Message((error.headers['www-authenticate'].match(new RegExp(`^${authenticationType}\\s+(.+?)(,|\\s+|$)`)) || [])[1], authenticationType);
             
-            let t3Msg = ntlm.createType3Message(t2Msg, credentials.username, credentials.password, credentials.workstation!, credentials.domain);
+            let t3Msg = ntlm.createType3Message(t2Msg, credentials.username, credentials.password, credentials.workstation!, credentials.domain, authenticationType);
 
             error.config.headers["X-retry"] = "false";
             error.config.headers["Authorization"] = t3Msg;
